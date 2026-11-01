@@ -1,7 +1,7 @@
 {
   "name": "discord-moderasyon-botu",
   "version": "1.0.0",
-  "description": "50 Komutluk Discord Moderasyon Botu",
+  "description": "50+ Komutluk Discord Moderasyon Botu",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
