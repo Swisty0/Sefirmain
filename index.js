@@ -320,7 +320,7 @@ client.on('messageCreate', async (message) => {
   }
 
   // -------------------------------------------------------------
-  // 🔊 31-40: SES KANALI KOMUTLARI
+  // 🔊 31-40: SES KANALI KOMUTLARI (Yeni eklenen sesegir dahil)
   // -------------------------------------------------------------
   if (command === 'voice-kick') {
     if (!member.permissions.has(PermissionFlagsBits.MoveMembers)) return message.reply('❌ Yetkiniz yok.');
@@ -404,8 +404,29 @@ client.on('messageCreate', async (message) => {
     return message.reply(`👥 Limit ${limit} yapıldı.`);
   }
 
+  // Sadece Yöneticilerin Kullanabileceği Ses Kanalına Girme/Taşıma Komutu
+  if (command === 'sesegir') {
+    if (!member.permissions.has(PermissionFlagsBits.Administrator)) return message.reply('❌ Bu komutu sadece **Yöneticiler** kullanabilir.');
+    const targetChannelId = args[0];
+    const targetUser = message.mentions.members.first() || member; // Eğer kullanıcı etiketlenmediyse komutu yazanı taşır
+    
+    if (!targetChannelId) return message.reply('❌ Kullanım: `.sesegir [Kanal_ID] [@Kullanıcı (isteğe bağlı)]`');
+    
+    const channel = guild.channels.cache.get(targetChannelId);
+    if (!channel || channel.type !== 2) return message.reply('❌ Belirtilen ID ile geçerli bir **Ses Kanalı** bulunamadı.');
+    
+    if (!targetUser.voice.channel) return message.reply('❌ Hedef kullanıcı herhangi bir ses kanalında değil.');
+
+    try {
+      await targetUser.voice.setChannel(channel);
+      return message.reply(`🔊 **${targetuser.user?.tag || targetUser.tag}** başarıyla <#${targetChannelId}> kanalına taşındı.`);
+    } catch (error) {
+      return message.reply('❌ Kullanıcı ses kanalına taşınamadı. Botun yetkilerini kontrol edin.');
+    }
+  }
+
   // -------------------------------------------------------------
-  // ⚙️ 41-50: SUNUCU, BİLGİ & SİSTEM KOMUTLARI
+  // ⚙️ 41-50+: SUNUCU, BİLGİ & SİSTEM KOMUTLARI
   // -------------------------------------------------------------
   if (command === 'server-info' || command === 'sunucu-bilgi') {
     const embed = new EmbedBuilder().setTitle(`🏰 ${guild.name}`).addFields({ name: 'Üye', value: `${guild.memberCount}`, inline: true }, { name: 'Kanal', value: `${guild.channels.cache.size}`, inline: true });
@@ -438,14 +459,14 @@ client.on('messageCreate', async (message) => {
 
   if (command === 'help' || command === 'yardım' || command === 'mod-help') {
     const embed = new EmbedBuilder()
-      .setTitle('🛡️ 50 Komutluk Moderasyon Botu - Yardım Menüsü')
+      .setTitle('🛡️ Moderasyon Botu - Yardım Menüsü')
       .setDescription('Ön ekler: `.` veya `!`')
       .addFields(
-        { name: '👥 Ceza & Moderasyon (1-10)', value: '`kick`, `ban`, `unban`, `mute` (`timeout`), `unmute`, `softban`, `warn`, `tempban`, `forceban`, `jail`' },
-        { name: '🧹 Temizlik & Kanal (11-20)', value: '`clear` (`sil`), `clearuser`, `clearbots`, `nuke`, `lock`, `unlock`, `slowmode`, `slowmode-off`, `clearemojis`, `clearlinks`' },
-        { name: '🛡️ Rol & Yetki (21-30)', value: '`role-add` (`rol-ver`), `role-remove` (`rol-al`), `role-all`, `role-remove-all`, `role-create`, `role-delete`, `role-info`, `nick`, `reset-nick`, `role-color`' },
-        { name: '🔊 Ses Yönetimi (31-40)', value: '`voice-kick`, `voice-mute`, `voice-unmute`, `voice-deaf`, `voice-undeaf`, `voice-move`, `voice-disconnect`, `voice-lock`, `voice-unlock`, `voice-limit`' },
-        { name: '⚙️ Sunucu & Sistem (41-50)', value: '`server-info`, `user-info`, `avatar`, `banner`, `ping`, `help` (`yardım`), `bot-info`, `bans-list`, `invites`, `slowmode-reset`' }
+        { name: '👥 Ceza & Moderasyon (1-10)', value: '`kick`, `ban`, `unban`, `mute`, `unmute`, `softban`, `warn`, `tempban`, `forceban`, `jail`' },
+        { name: '🧹 Temizlik & Kanal (11-20)', value: '`clear`, `clearuser`, `clearbots`, `nuke`, `lock`, `unlock`, `slowmode`, `slowmode-off`, `clearemojis`, `clearlinks`' },
+        { name: '🛡️ Rol & Yetki (21-30)', value: '`role-add`, `role-remove`, `role-all`, `role-remove-all`, `role-create`, `role-delete`, `role-info`, `nick`, `reset-nick`, `role-color`' },
+        { name: '🔊 Ses Yönetimi (31-40+)', value: '`voice-kick`, `voice-mute`, `voice-unmute`, `voice-deaf`, `voice-undeaf`, `voice-move`, `voice-disconnect`, `voice-lock`, `voice-unlock`, `voice-limit`, `sesegir` (Yönetici)' },
+        { name: '⚙️ Sunucu & Sistem', value: '`server-info`, `user-info`, `avatar`, `banner`, `ping`, `help`, `bot-info`, `bans-list`, `invites`, `slowmode-reset`' }
       )
       .setColor('#5865F2');
     return message.reply({ embeds: [embed] });
