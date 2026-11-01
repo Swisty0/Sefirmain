@@ -1,8 +1,9 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { joinVoiceChannel, getVoiceConnection } = require('@discordjs/voice');
 const express = require('express');
 
-// --- UptimeRobot & Render Uyku Önleyici Web Sunucusu ---
+// --- Render Uyku Önleyici Web Sunucusu (UptimeRobot için) ---
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -138,7 +139,7 @@ client.on('messageCreate', async (message) => {
     const userId = args[0];
     if (!userId) return message.reply('❌ ID girin.');
     await guild.members.ban(userId);
-    return message.reply(`✅ **${userId}** ID\\'li kullanıcı banlandı.`);
+    return message.reply(`✅ **${userId}** ID'li kullanıcı banlandı.`);
   }
 
   if (command === 'jail') {
@@ -320,7 +321,7 @@ client.on('messageCreate', async (message) => {
   }
 
   // -------------------------------------------------------------
-  // 🔊 31-40: SES KANALI KOMUTLARI (Yeni eklenen sesegir dahil)
+  // 🔊 31-40: SES KANALI KOMUTLARI
   // -------------------------------------------------------------
   if (command === 'voice-kick') {
     if (!member.permissions.has(PermissionFlagsBits.MoveMembers)) return message.reply('❌ Yetkiniz yok.');
@@ -404,24 +405,26 @@ client.on('messageCreate', async (message) => {
     return message.reply(`👥 Limit ${limit} yapıldı.`);
   }
 
-  // Sadece Yöneticilerin Kullanabileceği Ses Kanalına Girme/Taşıma Komutu
+  // --- BOTUN KENDİSİNİN SES KANALINA GİRMESİ (.sesegir KANAL_ID) ---
   if (command === 'sesegir') {
     if (!member.permissions.has(PermissionFlagsBits.Administrator)) return message.reply('❌ Bu komutu sadece **Yöneticiler** kullanabilir.');
     const targetChannelId = args[0];
-    const targetUser = message.mentions.members.first() || member; // Eğer kullanıcı etiketlenmediyse komutu yazanı taşır
     
-    if (!targetChannelId) return message.reply('❌ Kullanım: `.sesegir [Kanal_ID] [@Kullanıcı (isteğe bağlı)]`');
+    if (!targetChannelId) return message.reply('❌ Kullanım: `.sesegir [Kanal_ID]`');
     
     const channel = guild.channels.cache.get(targetChannelId);
-    if (!channel || channel.type !== 2) return message.reply('❌ Belirtilen ID ile geçerli bir **Ses Kanalı** bulunamadı.');
-    
-    if (!targetUser.voice.channel) return message.reply('❌ Hedef kullanıcı herhangi bir ses kanalında değil.');
+    if (!channel || channel.type !== 2) return message.reply('❌ Geçerli bir **Ses Kanalı ID** girilmedi.');
 
     try {
-      await targetUser.voice.setChannel(channel);
-      return message.reply(`🔊 **${targetuser.user?.tag || targetUser.tag}** başarıyla <#${targetChannelId}> kanalına taşındı.`);
+      joinVoiceChannel({
+        channelId: channel.id,
+        guildId: guild.id,
+        adapterCreator: guild.voiceAdapterCreator,
+      });
+      return message.reply(`🔊 Bot başarıyla <#${targetChannelId}> ses kanalına giriş yaptı.`);
     } catch (error) {
-      return message.reply('❌ Kullanıcı ses kanalına taşınamadı. Botun yetkilerini kontrol edin.');
+      console.error(error);
+      return message.reply('❌ Bot ses kanalına bağlanamadı. Gerekli izinleri kontrol edin.');
     }
   }
 
@@ -465,7 +468,7 @@ client.on('messageCreate', async (message) => {
         { name: '👥 Ceza & Moderasyon (1-10)', value: '`kick`, `ban`, `unban`, `mute`, `unmute`, `softban`, `warn`, `tempban`, `forceban`, `jail`' },
         { name: '🧹 Temizlik & Kanal (11-20)', value: '`clear`, `clearuser`, `clearbots`, `nuke`, `lock`, `unlock`, `slowmode`, `slowmode-off`, `clearemojis`, `clearlinks`' },
         { name: '🛡️ Rol & Yetki (21-30)', value: '`role-add`, `role-remove`, `role-all`, `role-remove-all`, `role-create`, `role-delete`, `role-info`, `nick`, `reset-nick`, `role-color`' },
-        { name: '🔊 Ses Yönetimi (31-40+)', value: '`voice-kick`, `voice-mute`, `voice-unmute`, `voice-deaf`, `voice-undeaf`, `voice-move`, `voice-disconnect`, `voice-lock`, `voice-unlock`, `voice-limit`, `sesegir` (Yönetici)' },
+        { name: '🔊 Ses Yönetimi (31-40+)', value: '`voice-kick`, `voice-mute`, `voice-unmute`, `voice-deaf`, `voice-undeaf`, `voice-move`, `voice-disconnect`, `voice-lock`, `voice-unlock`, `voice-limit`, `sesegir` (Botu Sese Sokar)' },
         { name: '⚙️ Sunucu & Sistem', value: '`server-info`, `user-info`, `avatar`, `banner`, `ping`, `help`, `bot-info`, `bans-list`, `invites`, `slowmode-reset`' }
       )
       .setColor('#5865F2');
