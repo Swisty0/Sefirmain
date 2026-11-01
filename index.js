@@ -1,6 +1,6 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const { joinVoiceChannel, getVoiceConnection } = require('@discordjs/voice');
+const { joinVoiceChannel } = require('@discordjs/voice');
 const express = require('express');
 
 // --- Render Uyku Önleyici Web Sunucusu (UptimeRobot için) ---
@@ -30,8 +30,34 @@ const client = new Client({
   ]
 });
 
+// --- SES SÜRELERİNİ TUTAN BELLEK ---
+const voiceTimeData = new Map();
+const activeVoiceSessions = new Map();
+
 client.once('ready', () => {
   console.log(`✅ Bot ${client.user.tag} olarak başarıyla aktif edildi!`);
+});
+
+// --- KULLANICI SES HAREKETLERİNİ İZLEME (Süre Hesaplama) ---
+client.on('voiceStateUpdate', (oldState, newState) => {
+  if (!newState.member) return;
+  const userId = newState.member.id;
+  const now = Date.now();
+
+  // Kanala katıldıysa
+  if (!oldState.channelId && newState.channelId) {
+    activeVoiceSessions.set(userId, now);
+  }
+  // Kanaldan tamamen çıktıysa
+  else if (oldState.channelId && !newState.channelId) {
+    const startTime = activeVoiceSessions.get(userId);
+    if (startTime) {
+      const elapsedSeconds = Math.floor((now - startTime) / 1000);
+      const currentTotal = voiceTimeData.get(userId) || 0;
+      voiceTimeData.set(userId, currentTotal + elapsedSeconds);
+      activeVoiceSessions.delete(userId);
+    }
+  }
 });
 
 client.on('messageCreate', async (message) => {
@@ -429,6 +455,43 @@ client.on('messageCreate', async (message) => {
   }
 
   // -------------------------------------------------------------
+  // 🎙️ .sessürem (GERÇEK ZAMANLI KİŞİSEL SES SÜRESİ & BANNER GÖRÜNÜMÜ)
+  // -------------------------------------------------------------
+  if (command === 'sessürem' || command === 'ses-suresi') {
+    const targetUser = message.mentions.users.first() || message.author;
+    const targetMember = message.guild.members.cache.get(targetUser.id);
+
+    // Toplam süreyi hesapla (Aktif oturum dahil)
+    let totalSeconds = voiceTimeData.get(targetUser.id) || 0;
+    const activeStart = activeVoiceSessions.get(targetUser.id);
+    if (activeStart) {
+      totalSeconds += Math.floor((Date.now() - activeStart) / 1000);
+    }
+
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const timeFormatted = `${hours} Saat ${minutes} Dakika`;
+
+    const inVoice = targetMember?.voice?.channel ? "🟢 Aktif Oturum (Seste)" : "🔴 Çevrimdışı / Seste Değil";
+    const currentChannel = targetMember?.voice?.channel ? `# ${targetMember.voice.channel.name}` : "Bulunmuyor";
+
+    const embed = new EmbedBuilder()
+      .setColor('#ff1a1a') // Kırmızı neon tema
+      .setTitle(`🛡️ SES KANALI ANALİZ PANELİ`)
+      .setAuthor({ name: targetUser.tag, iconURL: targetUser.displayAvatarURL({ dynamic: true }) })
+      .setDescription(`> **${targetUser.username}** adlı kullanıcının anlık ses istatistikleri raporu:`)
+      .addFields(
+        { name: '⏱️ TOPLAM SES SÜRESİ', value: `**${timeFormatted}**\n\`Gerçek Zamanlı Takip\``, inline: true },
+        { name: '🎙️ DURUM', value: `**${inVoice}**\n\`Kanal: ${currentChannel}\``, inline: true },
+        { name: '⭐ FAVORİ KANAL', value: `**${currentChannel}**\n\`Aktif Veri Havuzu\``, inline: true }
+      )
+      .setFooter({ text: 'SİSTEM ID: #8849-VOICE • CRIMSON DESIGN ENGINE', iconURL: client.user.displayAvatarURL() })
+      .setTimestamp();
+
+    return message.reply({ embeds: [embed] });
+  }
+
+  // -------------------------------------------------------------
   // ⚙️ 41-50+: SUNUCU, BİLGİ & SİSTEM KOMUTLARI
   // -------------------------------------------------------------
   if (command === 'server-info' || command === 'sunucu-bilgi') {
@@ -468,7 +531,7 @@ client.on('messageCreate', async (message) => {
         { name: '👥 Ceza & Moderasyon (1-10)', value: '`kick`, `ban`, `unban`, `mute`, `unmute`, `softban`, `warn`, `tempban`, `forceban`, `jail`' },
         { name: '🧹 Temizlik & Kanal (11-20)', value: '`clear`, `clearuser`, `clearbots`, `nuke`, `lock`, `unlock`, `slowmode`, `slowmode-off`, `clearemojis`, `clearlinks`' },
         { name: '🛡️ Rol & Yetki (21-30)', value: '`role-add`, `role-remove`, `role-all`, `role-remove-all`, `role-create`, `role-delete`, `role-info`, `nick`, `reset-nick`, `role-color`' },
-        { name: '🔊 Ses Yönetimi (31-40+)', value: '`voice-kick`, `voice-mute`, `voice-unmute`, `voice-deaf`, `voice-undeaf`, `voice-move`, `voice-disconnect`, `voice-lock`, `voice-unlock`, `voice-limit`, `sesegir` (Botu Sese Sokar)' },
+        { name: '🔊 Ses Yönetimi & Analiz', value: '`voice-kick`, `voice-mute`, `voice-unmute`, `voice-deaf`, `voice-undeaf`, `voice-move`, `voice-disconnect`, `voice-lock`, `voice-unlock`, `voice-limit`, `sesegir`, `sessürem`' },
         { name: '⚙️ Sunucu & Sistem', value: '`server-info`, `user-info`, `avatar`, `banner`, `ping`, `help`, `bot-info`, `bans-list`, `invites`, `slowmode-reset`' }
       )
       .setColor('#5865F2');
